@@ -1,0 +1,51 @@
+{
+  "name": "@opikey/cli",
+  "version": "0.1.0",
+  "description": "OPIKey CLI: sign in, list keys, and run commands with your secrets loaded.",
+  "keywords": [
+    "opikey",
+    "cli",
+    "secrets",
+    "env",
+    "ai-agents"
+  ],
+  "license": "MIT",
+  "homepage": "https://opikey.ai/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jiayi-app/opikey-js.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/jiayi-app/opikey-js/issues"
+  },
+  "type": "module",
+  "bin": {
+    "opi": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@opikey/sdk": "^0.1.0",
+    "@napi-rs/keyring": "2.1.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10",
+    "@types/node": "^22.16.5",
+    "@opikey/sdk": "file:../sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

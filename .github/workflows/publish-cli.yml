@@ -1,0 +1,30 @@
+name: Publish OPI cli
+on:
+  push:
+    tags: ['cli-v*']
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-cli
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - run: npm install --global npm@11.6.2
+      - run: npm ci --ignore-scripts && npm run build
+        working-directory: packages/sdk
+      - run: npm ci --ignore-scripts
+        working-directory: packages/cli
+      - run: npm test
+        working-directory: packages/cli
+      - run: npm run build
+        working-directory: packages/cli
+      - name: Verify release tag
+        run: node -e "if (process.env.GITHUB_REF_NAME !== 'cli-v' + require('./package.json').version) process.exit(1)"
+        working-directory: packages/cli
+      - run: npm publish --provenance --access public
+        working-directory: packages/cli

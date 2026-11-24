@@ -1,0 +1,49 @@
+{
+  "name": "@opikey/sdk",
+  "version": "0.1.0",
+  "description": "OPIKey SDK: call any API through your OPI Key, or load your secrets at startup.",
+  "keywords": [
+    "opikey",
+    "api-keys",
+    "secrets",
+    "ai-agents",
+    "gateway"
+  ],
+  "license": "MIT",
+  "homepage": "https://opikey.ai/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jiayi-app/opikey-js.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/jiayi-app/opikey-js/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
