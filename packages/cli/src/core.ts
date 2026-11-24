@@ -1,4 +1,4 @@
-import {Opi,secureBaseUrl,checkResponse} from '@opikey/sdk';
+import {Opi,secureBaseUrl,checkResponse,envEntries} from '@opikey/sdk';
 export type CliIO={out:(text:string)=>void;err:(text:string)=>void;read:()=>Promise<string|null>;save:(token:string)=>Promise<void>;clear:()=>Promise<void>;open:(url:string)=>void;run:(command:string,args:string[],env:Record<string,string|undefined>)=>Promise<number>};
 export async function cli(args:string[],io:CliIO,environment:Record<string,string|undefined>,send:typeof fetch=fetch):Promise<number>{
  const base=secureBaseUrl(environment['OPIKEY_BASE_URL']??'https://opikey.ai');const command=args[0];
@@ -12,7 +12,7 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
  if(command==='secrets'){if(!ref)throw new Error('Choose an OPI Key.');const response=await sessionRequest('/api/public/cli/secrets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:ref})});const data=await response.json() as {secrets:{name:string;service:string;environment:string}[]};for(const secret of data.secrets)io.out(`${secret.name}\t${secret.service}\t${secret.environment}`);return 0;}
  if(command==='run'){const separator=args.indexOf('--');const executable=separator>=0?args[separator+1]:undefined;if(!executable)throw new Error('Provide a command after --.');const childEnv={...environment};delete childEnv['OPIKEY'];delete childEnv['OPIKEY_BASE_URL'];
  if(environment['OPIKEY']){const opi=new Opi({key:environment['OPIKEY'],baseUrl:base});await opi.loadSecrets({target:childEnv});}
- else{if(!ref)throw new Error('Choose an OPI Key.');const response=await sessionRequest('/api/public/cli/run-secrets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:ref})});const data=await response.json() as {secrets:Record<string,string>};for(const [name,value]of Object.entries(data.secrets))if(/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)&&!['__proto__','constructor','prototype'].includes(name))childEnv[name]=value;}
+ else{if(!ref)throw new Error('Choose an OPI Key.');const response=await sessionRequest('/api/public/cli/run-secrets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:ref})});const data=await response.json() as {secrets:Record<string,unknown>};for(const {env:name,value}of envEntries(data.secrets))childEnv[name]=value;}
  return io.run(executable,args.slice(separator+2),childEnv);}
  io.out('opi login | logout | keys | secrets --key name | run --key name -- command');return 0;
 }

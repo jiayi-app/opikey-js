@@ -9,3 +9,7 @@ Node 20+. `npm install -g @opikey/cli` after the first trusted publication.
 - `opi logout`: revoke the session and erase its local credential.
 
 CI can provide `OPIKEY` and use `opi run -- command` without a login. The OPI Key itself is removed from the child environment. CLI tokens last 30 days and rotate on each authenticated use. Run only one CLI operation at a time: concurrent reuse revokes the session, by design. The OS keychain is preferred; unavailable keychains produce a warning and use `~/.config/opikey/credentials` with mode 0600. The fallback file stores only the CLI session token, never provider credentials. Never include that file in backups or CI artifacts.
+
+## Secret names in `opi run`
+
+Secrets are passed to your command as environment variables. Names that are already valid variable names are kept; others are uppercased with every other character turned into `_` (for example `httpbin-test` becomes `HTTPBIN_TEST`). If two secrets would map to the same variable name, `opi run` stops with an error instead of overwriting one.

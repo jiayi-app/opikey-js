@@ -1,6 +1,6 @@
 {
   "name": "@opikey/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "OPIKey CLI: sign in, list keys, and run commands with your secrets loaded.",
   "keywords": [
     "opikey",
@@ -36,7 +36,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@opikey/sdk": "^0.1.0",
+    "@opikey/sdk": "^0.1.2",
     "@napi-rs/keyring": "2.1.2"
   },
   "devDependencies": {
