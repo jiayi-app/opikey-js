@@ -1,6 +1,6 @@
 {
   "name": "@opikey/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OPIKey SDK: call any API through your OPI Key, or load your secrets at startup.",
   "keywords": [
     "opikey",
