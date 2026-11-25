@@ -35,3 +35,6 @@ describe('opi setup',()=>{
  it('validates options before creating anything',async()=>{const calls=server();const {io}=fixture();expect(await cli(['setup','--client','notepad'],io,{})).toBe(64);expect(await cli(['setup','--client','cursor','--secrets','a','--all-secrets'],io,{})).toBe(64);expect(await cli(['setup','--client','cursor','--expires-days','999'],io,{})).toBe(64);expect(calls).toHaveLength(0);});
  it('opi vault lists names only',async()=>{vi.stubGlobal('fetch',async()=>Response.json({secrets:[{name:'openai',service:'OpenAI',environment:'production',gateway_ready:true},{name:'db',service:'Postgres',environment:'production',gateway_ready:false}]}));const {io,out}=fixture();await cli(['vault'],io,{});expect(out).toEqual(['openai\tOpenAI\tproduction','db\tPostgres\tproduction\t(no base URL: fetch mode only)']);});
 });
+import {readFileSync} from 'node:fs';
+import {VERSION} from '../src/core';
+describe('version',()=>{it('prints the package version for opi --version',async()=>{const {io,out}=fixture();expect(await cli(['--version'],io,{})).toBe(0);expect(out).toEqual([JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8')).version]);expect(VERSION).toBe(out[0]);});});

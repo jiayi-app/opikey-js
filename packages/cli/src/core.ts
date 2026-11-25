@@ -29,6 +29,8 @@ function has(args:string[],name:string){const end=args.indexOf('--');const i=arg
 function int(args:string[],name:string,min=0){const v=flag(args,name);if(v===undefined)return undefined;if(!/^\d+$/.test(v)||Number(v)<min)throw new UsageError(`${name} must be a whole number${min?` of at least ${min}`:''}.`);return Number(v);}
 function list(args:string[],name:string){const v=flag(args,name);return v===undefined?undefined:v.split(',').map(s=>s.trim()).filter(Boolean);}
 class UsageError extends Error{}
+/** Kept in step with package.json by a test. */
+export const VERSION='0.3.0';
 const SOURCES:InboxSource[]=['stripe','github','standard_webhooks','slack','generic_hmac','none'];
 
 /** Only https URLs, or http://localhost / 127.0.0.1 for local development, may receive forwarded messages. */
@@ -69,6 +71,7 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
   if(installed)io.err(`Reload MCP servers in ${spec.label}, then call the opikey list_secrets tool.`);
   return installed&&verified?0:1;
  }
+ if(command==='--version'||command==='-v'||command==='version'){io.out(VERSION);return 0;}
  try{
  if(command==='login'){const response=await checkResponse(await send(base+'/api/public/cli/device/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({device_name:environment['OPIKEY_DEVICE_NAME']??'OPI CLI'}),redirect:'manual'}));const data=await response.json() as {device_code:string;user_code:string;verification_uri:string;interval:number;expires_in:number};const verify=new URL(data.verification_uri);if(verify.origin!==base||verify.pathname!=='/cli/activate')throw new Error('Invalid verification page.');io.out(`Open ${verify.href}\nEnter ${data.user_code}`);io.open(verify.href);const deadline=Date.now()+data.expires_in*1000;let interval=data.interval*1000;
   while(Date.now()<deadline){await new Promise(r=>setTimeout(r,interval));const result=await send(base+'/api/public/cli/device/token',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({device_code:data.device_code}),redirect:'manual'});const body=await result.json() as {access_token?:string;error?:{code?:string}};if(result.ok&&body.access_token){await io.save(body.access_token);io.out('Signed in.');return 0;}const code=body.error?.code;if(code==='slow_down'){interval+=5000;continue;}if(code==='authorization_pending')continue;io.err(code==='access_denied'?'Device denied.':'Device authorization expired.');return 1;}io.err('Device authorization expired.');return 1;
