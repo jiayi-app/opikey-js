@@ -29,6 +29,7 @@ function has(args:string[],name:string){const end=args.indexOf('--');const i=arg
 function int(args:string[],name:string,min=0){const v=flag(args,name);if(v===undefined)return undefined;if(!/^\d+$/.test(v)||Number(v)<min)throw new UsageError(`${name} must be a whole number${min?` of at least ${min}`:''}.`);return Number(v);}
 function list(args:string[],name:string){const v=flag(args,name);return v===undefined?undefined:v.split(',').map(s=>s.trim()).filter(Boolean);}
 class UsageError extends Error{}
+class SignInRequired extends Error{}
 /** Kept in step with package.json by a test. */
 export const VERSION='0.3.0';
 const SOURCES:InboxSource[]=['stripe','github','standard_webhooks','slack','generic_hmac','none'];
@@ -38,7 +39,7 @@ export function forwardTarget(value:string){const url=new URL(value);const local
 
 export async function cli(args:string[],io:CliIO,environment:Record<string,string|undefined>,send:typeof fetch=fetch):Promise<number>{
  const base=secureBaseUrl(environment['OPIKEY_BASE_URL']??'https://opikey.ai');const command=args[0];
- async function sessionRequest(path:string,init:RequestInit={}){const token=await io.read();if(!token){io.err('Sign in with opi login.');throw new Error('Sign-in required.');}const headers=new Headers(init.headers);headers.set('authorization',`Bearer ${token}`);const response=await send(base+path,{...init,headers,redirect:'manual'});const next=response.headers.get('x-opi-cli-token');if(next)await io.save(next);return checkResponse(response);}
+ async function sessionRequest(path:string,init:RequestInit={}){const token=await io.read();if(!token)throw new SignInRequired();const headers=new Headers(init.headers);headers.set('authorization',`Bearer ${token}`);const response=await send(base+path,{...init,headers,redirect:'manual'});const next=response.headers.get('x-opi-cli-token');if(next)await io.save(next);return checkResponse(response);}
  /** Commands that act as an agent use the OPI Key from the OPIKEY environment variable, never a command-line argument (which would end up in shell history). */
  function keyClient(){const key=environment['OPIKEY'];if(!key)throw new UsageError('Set the OPIKEY environment variable to an OPI Key for this command.');return new Opi({key,baseUrl:base});}
  /** Create an OPI Key for this agent with the signed-in session, connect it to the agent's MCP config, and verify it. Never prints the key. */
@@ -144,6 +145,7 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
  io.out(HELP);return 0;
  }catch(error){
   if(error instanceof UsageError){io.err(error.message);return 64;}
+  if(error instanceof SignInRequired){io.err('Not signed in. Run opi login first.');return 1;}
   if(error instanceof OpiError){io.err(`${error.message} (${error.code})`);return 1;}
   throw error;
  }
