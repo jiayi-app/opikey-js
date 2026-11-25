@@ -1,7 +1,7 @@
 {
   "name": "@opikey/sdk",
-  "version": "0.2.0",
-  "description": "OPIKey SDK: call any API through your OPI Key, give sub-agents smaller keys, use AI mode, receive webhooks and get instant API accounts.",
+  "version": "0.3.0",
+  "description": "OPIKey SDK: call any API through your OPI Key, give sub-agents smaller keys, use AI mode and receive webhooks.",
   "keywords": [
     "ai-agents",
     "api-keys",

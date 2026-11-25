@@ -48,12 +48,3 @@ describe('Inbox',()=>{
   const seen:string[]=[];const errors:unknown[]=[];await opi().inbox.listen(ID,e=>{seen.push(e.id);if(e.id!==EV)throw new Error('handler failed');},{signal:controller.signal,onError:x=>errors.push(x)});
   expect(seen).toHaveLength(2);expect(errors).toHaveLength(1);expect(calls.filter(c=>c.url.endsWith('/ack')).map(c=>c.url)).toEqual([`https://opikey.ai/api/public/inbox/${ID}/events/${EV}/ack`]);});
 });
-
-describe('Instant API accounts',()=>{
- it('finds providers with a query',async()=>{const calls=server(()=>Response.json({providers:[{slug:'example-search'}]}));expect(await opi().accounts.find({query:'search'})).toEqual([{slug:'example-search'}]);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/accounts/providers?q=search');});
- it('connects and returns the vault secret name, never a key',async()=>{server(()=>Response.json({status:'connected',secret:'example-search',gateway:'https://opikey.ai/api/public/gateway/example-search'}));const r=await opi().accounts.connect('example-search');expect(r).toEqual({status:'connected',secret:'example-search',gateway:'https://opikey.ai/api/public/gateway/example-search'});});
- it('waits for owner approval, then connects again',async()=>{let connects=0;const calls=server(url=>{if(url.endsWith('/connect')){connects++;return connects===1?Response.json({status:'needs_approval',approval_id:ID},{status:202}):Response.json({status:'connected',secret:'s',gateway:'g'});}return Response.json({status:'approved'});});
-  const r=await opi().accounts.connect('example-search',{plan:'free',waitForApprovalMs:5000});expect(r.status).toBe('connected');expect(body(calls[0])).toEqual({provider:'example-search',plan:'free'});expect(calls.some(c=>c.url.endsWith(`/approvals/${ID}`))).toBe(true);});
- it('throws when the owner rejects the account',async()=>{server(url=>url.endsWith('/connect')?Response.json({status:'needs_approval',approval_id:ID},{status:202}):Response.json({status:'rejected'}));await expect(opi().accounts.connect('p',{waitForApprovalMs:5000})).rejects.toBeInstanceOf(OpiForbiddenError);});
- it('validates provider slugs locally',async()=>{await expect(opi().accounts.connect('Bad Slug!')).rejects.toMatchObject({code:'invalid_request'});});
-});

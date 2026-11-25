@@ -32,11 +32,6 @@ export type InboxEvent={id:string;type:string|null;received_at:string;verified:b
  body:unknown;security:Record<string,unknown>|null;status:string;credits:number;warning?:string};
 export type InboxEventFilter={status?:'new'|'leased'|'acked'|'held'|'failed';type?:string;after?:string;limit?:number};
 
-export type ApiProvider={slug:string;name:string;description:string;category:string;logo:string|null;plans:{id:string;name:string;price:string;needs_payment:boolean}[]};
-export type ConnectResult=
- |{status:'connected';secret:string;gateway:string}
- |{status:'needs_approval';approval_id:string}
- |{status:'needs_payment';message:string};
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -66,7 +61,6 @@ const safeMessages:Record<string,string>={
  encryption_unavailable:'Encryption is temporarily unavailable.',insufficient_credits:'Not enough OPIKey service credits.',budget_exhausted:'This key tree has used its credit budget.',
  calls_exhausted:'This key tree has used its call allowance.',key_paused:'This OPI Key or one of its parents is paused.',key_expired:'This OPI Key or one of its parents has expired.',
  delegation_not_allowed:'This OPI Key cannot create sub-keys.',exceeds_parent:'A sub-key cannot have more than its parent.',ai_mode_disabled:'AI mode is not enabled for this key.',
- mfa_required:'The owner must turn on authenticator two-step sign-in first.',connect_not_allowed:'This OPI Key cannot create accounts.',unknown_provider:'No listed provider with that name.',
  root_key_required:'Use a dashboard-created root key for this request.',rate_limited:'Too many requests. Try again shortly.',not_found:'Not found.',
 };
 const SAFE_DETAIL=/^[A-Za-z0-9_.:@\/-]{1,120}$/;
@@ -172,26 +166,6 @@ export class OpiInbox{
  }
 }
 
-/** Instant API accounts: get a working account at a listed provider; the key goes straight into the vault. */
-export class OpiAccounts{
- constructor(private readonly request:Requester,private readonly approvals:(id:string,o:{timeoutMs:number})=>Promise<string>){}
- /** Search the directory of APIs that support instant accounts. */
- async find(options:{query?:string;category?:string}={}):Promise<ApiProvider[]>{const q=new URLSearchParams();if(options.query)q.set('q',options.query);if(options.category)q.set('category',options.category);const s=q.toString();return ((await (await this.request('/api/public/accounts/providers'+(s?'?'+s:''))).json()) as {providers:ApiProvider[]}).providers;}
- /**
-  * Connect a provider for the owner. On `connected`, call it with `opi.fetch(result.secret, path)`.
-  * With `waitForApprovalMs`, a `needs_approval` result waits for the owner and then connects.
-  */
- async connect(provider:string,options:{plan?:string;waitForApprovalMs?:number}={}):Promise<ConnectResult>{
-  if(!/^[a-z0-9-]{1,40}$/.test(provider)||(options.plan!==undefined&&!/^[a-z0-9-]{1,40}$/.test(options.plan)))throw new OpiError('invalid_request',0,'Provide a provider slug and optional plan id.');
-  const body=options.plan?{provider,plan:options.plan}:{provider};
-  const first=(await (await this.request('/api/public/accounts/connect',json(body))).json()) as ConnectResult;
-  if(first.status!=='needs_approval'||!options.waitForApprovalMs)return first;
-  const decision=await this.approvals(first.approval_id,{timeoutMs:options.waitForApprovalMs});
-  if(decision!=='approved')throw new OpiForbiddenError('approval_'+decision.replace(/[^a-z_]/g,''),403,'The owner did not approve this account.');
-  return (await (await this.request('/api/public/accounts/connect',json(body))).json()) as ConnectResult;
- }
-}
-
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -203,12 +177,10 @@ export class Opi{
  readonly ai:OpiAi;
  /** Webhook inbox. */
  readonly inbox:OpiInbox;
- /** Instant API accounts. */
- readonly accounts:OpiAccounts;
  constructor(options:{key?:string;baseUrl?:string}={}){
   this.#key=options.key??env()?.['OPIKEY']??'';if(!this.#key)throw new OpiAuthError('missing_key',401,'An OPI Key is required.');this.baseUrl=secureBaseUrl(options.baseUrl??'https://opikey.ai');
   const request:Requester=(path,init)=>this.#request(path,init);
-  this.keys=new OpiKeys(request);this.ai=new OpiAi(request);this.inbox=new OpiInbox(request);this.accounts=new OpiAccounts(request,(id,o)=>this.waitForApproval(id,o));
+  this.keys=new OpiKeys(request);this.ai=new OpiAi(request);this.inbox=new OpiInbox(request);
  }
  toString(){return 'Opi { key: [hidden] }';}
  toJSON(){return {baseUrl:this.baseUrl,key:'[hidden]'};}

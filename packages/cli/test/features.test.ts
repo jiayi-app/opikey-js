@@ -25,12 +25,10 @@ describe('sub-key commands',()=>{
  it('revokes by id',async()=>{const {io,out}=fixture();const calls=server(()=>Response.json({revoked:3}));await cli(['subkey','revoke',ID],io,KEY);expect(calls[0]?.url).toBe(`https://opikey.ai/api/public/keys/${ID}/revoke`);expect(out).toEqual(['Revoked 3 key(s).']);});
 });
 
-describe('AI mode, credits and accounts',()=>{
+describe('AI mode and credits',()=>{
  it('prints the answer of a finished AI run',async()=>{const {io,out}=fixture();server(()=>Response.json({id:ID,status:'completed',steps:2,credits:140,answer:'uuid-123',error:null,pending_action:null}));expect(await cli(['ai','Get a UUID from httpbin'],io,KEY)).toBe(0);expect(out).toEqual(['uuid-123']);});
  it('exits 2 and prints the run id when a write needs approval',async()=>{const {io,out}=fixture();server(()=>Response.json({id:ID,status:'awaiting_confirmation',steps:1,credits:60,answer:null,error:null,pending_action:{method:'POST',api:'httpbin',path:'/anything',approved:false}}));expect(await cli(['ai','post hello'],io,KEY)).toBe(2);expect(out).toEqual([ID]);});
  it('shows credits',async()=>{const {io,out}=fixture();server(()=>Response.json({balance:150000,monthly_remaining:100000,purchased_remaining:50000,next_grant_at:null}));await cli(['credits'],io,KEY);expect(out[0]).toContain('150,000 credits');});
- it('connect prints the vault secret name, never a key',async()=>{const {io,out}=fixture();server(()=>Response.json({status:'connected',secret:'example-search',gateway:'https://opikey.ai/api/public/gateway/example-search'}));expect(await cli(['connect','example-search'],io,KEY)).toBe(0);expect(out).toEqual(['example-search']);});
- it('connect exits 2 when the owner must approve',async()=>{const {io,err}=fixture();server(()=>Response.json({status:'needs_approval',approval_id:ID},{status:202}));expect(await cli(['connect','example-search'],io,KEY)).toBe(2);expect(err.join()).toContain('Approve');});
 });
 
 describe('inbox',()=>{

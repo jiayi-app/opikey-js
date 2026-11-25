@@ -19,9 +19,7 @@ With an OPI Key in the OPIKEY environment variable:
   opi ai "TASK" [--wait SECONDS]  AI mode; waits for your approval of writes when --wait is set
   opi inbox list
   opi inbox create --name N --source SOURCE [--generate | --secret-name NAME] [--retention DAYS]
-  opi inbox listen ID [--forward URL] [--type T]
-  opi apis [QUERY]                APIs that offer instant accounts
-  opi connect PROVIDER [--plan P] [--wait SECONDS]`;
+  opi inbox listen ID [--forward URL] [--type T]`;
 
 /** Value after a flag, or undefined. A flag never consumes another flag or anything after "--". */
 function flag(args:string[],name:string){const end=args.indexOf('--');const i=args.indexOf(name);if(i<0||(end>=0&&i>end))return undefined;const v=args[i+1];return v===undefined||v.startsWith('--')?undefined:v;}
@@ -31,7 +29,7 @@ function list(args:string[],name:string){const v=flag(args,name);return v===unde
 class UsageError extends Error{}
 class SignInRequired extends Error{}
 /** Kept in step with package.json by a test. */
-export const VERSION='0.3.0';
+export const VERSION='0.4.0';
 const SOURCES:InboxSource[]=['stripe','github','standard_webhooks','slack','generic_hmac','none'];
 
 /** Only https URLs, or http://localhost / 127.0.0.1 for local development, may receive forwarded messages. */
@@ -66,7 +64,7 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
    io.err(`The key was saved to ${path} (readable only by you). Add an MCP server named "${SERVER_NAME}" with URL ${url} and the header "Authorization: Bearer <the OPIKEY value from that file>".`);
   }
   let verified=false;try{const self=await new Opi({key,baseUrl:base}).keys.self();verified=self.id===created.id;}catch{verified=false;}
-  io.out(`Key\t${created.name}`);io.out(`Expires\t${created.expires_at??'never'}`);io.out(`APIs\t${created.secrets.length?created.secrets.join(', '):'none yet: tick APIs on the key page in OPIKey, or use opi connect'}`);
+  io.out(`Key\t${created.name}`);io.out(`Expires\t${created.expires_at??'never'}`);io.out(`APIs\t${created.secrets.length?created.secrets.join(', '):'none yet: tick APIs on the key page in OPIKey'}`);
   io.out(`MCP\t${installed?`connected in ${installed}${replaced?' (replaced an older opikey entry)':''}`:'not connected automatically'}`);io.out(`Verified\t${verified?'yes':'no'}`);
   if(replaced)io.err('An older "opikey" entry was replaced. If its key is no longer used, revoke it on the OPI Keys page.');
   if(installed)io.err(`Reload MCP servers in ${spec.label}, then call the opikey list_secrets tool.`);
@@ -79,7 +77,7 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
  }
  if(command==='logout'){try{await sessionRequest('/api/public/cli/logout',{method:'POST'});}finally{await io.clear();}io.out('Signed out.');return 0;}
  if(command==='keys'){const response=await sessionRequest('/api/public/cli/keys');const data=await response.json() as {keys:{id:string;name:string;key_prefix:string;modes:string[];revoked_at:string|null}[]};for(const key of data.keys)io.out(`${key.name}\t${key.key_prefix}\t${key.modes.join(',')}\t${key.revoked_at?'revoked':'active'}`);return 0;}
- if(command==='vault'){const response=await sessionRequest('/api/public/cli/vault');const data=await response.json() as {secrets:{name:string;service:string;environment:string;gateway_ready:boolean}[]};if(!data.secrets.length)io.err('No APIs saved yet. Add them in OPIKey under API/secrets, or use opi connect for instant accounts.');for(const secret of data.secrets)io.out(`${secret.name}\t${secret.service}\t${secret.environment}${secret.gateway_ready?'':'\t(no base URL: fetch mode only)'}`);return 0;}
+ if(command==='vault'){const response=await sessionRequest('/api/public/cli/vault');const data=await response.json() as {secrets:{name:string;service:string;environment:string;gateway_ready:boolean}[]};if(!data.secrets.length)io.err('No APIs saved yet. Add them in OPIKey under API/secrets.');for(const secret of data.secrets)io.out(`${secret.name}\t${secret.service}\t${secret.environment}${secret.gateway_ready?'':'\t(no base URL: fetch mode only)'}`);return 0;}
  if(command==='setup')return await setup();
  const ref=flag(args,'--key');
  if(command==='secrets'){if(!ref)throw new UsageError('Choose an OPI Key with --key NAME.');const response=await sessionRequest('/api/public/cli/secrets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:ref})});const data=await response.json() as {secrets:{name:string;service:string;environment:string}[]};for(const secret of data.secrets)io.out(`${secret.name}\t${secret.service}\t${secret.environment}`);return 0;}
@@ -134,13 +132,6 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
    },{...(io.signal?{signal:io.signal}:{}),...(type?{type}:{}),onError:e=>io.err(e instanceof Error?e.message:'Inbox error; retrying.')});
    return 0;}
   throw new UsageError('opi inbox list | create | listen ID');}
-
- if(command==='apis'){const query=args[1]&&!args[1].startsWith('--')?args[1]:undefined;for(const p of await keyClient().accounts.find(query?{query}:{}))io.out(`${p.slug}\t${p.name}\t${p.category}\t${p.plans.map(x=>x.id+(x.needs_payment?' (paid)':'')).join(', ')}`);return 0;}
- if(command==='connect'){const provider=args[1];if(!provider||provider.startsWith('--'))throw new UsageError('opi connect PROVIDER [--plan P] [--wait SECONDS]');const plan=flag(args,'--plan');const wait=int(args,'--wait');
-  const r=await keyClient().accounts.connect(provider,{...(plan?{plan}:{}),...(wait?{waitForApprovalMs:wait*1000}:{})});
-  if(r.status==='connected'){io.out(r.secret);io.err(`Connected. The key is in your vault; call it through ${r.gateway}`);return 0;}
-  if(r.status==='needs_approval'){io.err(`Approve this account in your OPIKey dashboard (Approvals), then run the command again. Approval ${r.approval_id}.`);return 2;}
-  io.err(r.message);return 2;}
 
  io.out(HELP);return 0;
  }catch(error){

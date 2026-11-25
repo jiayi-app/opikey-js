@@ -42,10 +42,8 @@ These commands read the OPI Key from the `OPIKEY` environment variable, never fr
 | `opi inbox list` | Your inboxes and their receiving URLs. |
 | `opi inbox create --name N --source github --generate` | Create a webhook inbox and print its receiving URL. Sources: `stripe`, `github`, `standard_webhooks`, `slack`, `generic_hmac`, `none`. Use `--secret-name NAME` for a signing secret already in your vault. |
 | `opi inbox listen ID [--forward http://localhost:3000/hook] [--type T]` | Print messages as JSON lines, or forward each to your local app. Messages are acked only after a 2xx; otherwise they are redelivered. Ctrl+C stops. Forwarding is limited to `https://` and `http://localhost`. |
-| `opi apis [query]` | APIs that offer instant accounts. |
-| `opi connect PROVIDER [--plan P] [--wait SECONDS]` | Get an instant account. Prints the vault secret name (never a key). Exits 2 when you must approve it first. |
 
-Exit codes: 0 success, 1 request failed, 2 waiting for you (approval or payment), 64 usage error, 130 stopped.
+Exit codes: 0 success, 1 request failed, 2 waiting for your approval, 64 usage error, 130 stopped.
 
 ## Secret names in `opi run`
 
