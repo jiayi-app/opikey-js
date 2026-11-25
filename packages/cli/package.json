@@ -1,6 +1,6 @@
 {
   "name": "@opikey/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OPIKey CLI: sign in, run commands with secrets or a short-lived sub-key, manage sub-keys, AI mode, inbox and instant API accounts.",
   "keywords": [
     "opikey",

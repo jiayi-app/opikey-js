@@ -6,6 +6,16 @@ Node 20+.
 npm install --global @opikey/cli
 ```
 
+## Set up with your agent
+
+The easiest start: tell your coding agent `Set up OPIKey by following https://opikey.ai/get-started.md`. It runs these for you:
+
+- `opi login`: you approve the code in your browser.
+- `opi vault`: lists the names of the APIs saved in your vault (never values), so the agent can ask which it may use.
+- `opi setup --client <claude-code|cursor|vscode|windsurf|gemini|codex|other> [--secrets a,b | --all-secrets]`: creates an OPI Key for that agent (named like "Cursor on MacBook", gateway mode only, sub-keys allowed, 90-day expiry by default), writes it straight into the agent's MCP settings, and checks it works. The key is never printed. Config files it writes are made readable only by you. If a config file can't be edited safely, it's left unchanged and the key is saved to `~/.config/opikey/agent.env` instead, with instructions. Options: `--name`, `--expires-days N` (up to 365), `--no-subkeys`.
+
+The new key is a normal OPI Key: it appears on your OPI Keys page, where you can change its APIs, limits and expiry, or revoke it.
+
 ## Signed in as you
 
 - `opi login`: approve the displayed code at the displayed HTTPS page. Only approve a CLI you started. Authenticator verification is required when enabled.
