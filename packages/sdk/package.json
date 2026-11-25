@@ -1,13 +1,16 @@
 {
   "name": "@opikey/sdk",
-  "version": "0.1.2",
-  "description": "OPIKey SDK: call any API through your OPI Key, or load your secrets at startup.",
+  "version": "0.2.0",
+  "description": "OPIKey SDK: call any API through your OPI Key, give sub-agents smaller keys, use AI mode, receive webhooks and get instant API accounts.",
   "keywords": [
-    "opikey",
-    "api-keys",
-    "secrets",
     "ai-agents",
-    "gateway"
+    "api-keys",
+    "gateway",
+    "mcp",
+    "opikey",
+    "secrets",
+    "sub-keys",
+    "webhooks"
   ],
   "license": "MIT",
   "homepage": "https://opikey.ai/docs",

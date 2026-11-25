@@ -1,7 +1,7 @@
 {
   "name": "@opikey/cli",
-  "version": "0.1.2",
-  "description": "OPIKey CLI: sign in, list keys, and run commands with your secrets loaded.",
+  "version": "0.2.0",
+  "description": "OPIKey CLI: sign in, run commands with secrets or a short-lived sub-key, manage sub-keys, AI mode, inbox and instant API accounts.",
   "keywords": [
     "opikey",
     "cli",
@@ -36,7 +36,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@opikey/sdk": "^0.1.2",
+    "@opikey/sdk": "^0.2.0",
     "@napi-rs/keyring": "2.1.2"
   },
   "devDependencies": {

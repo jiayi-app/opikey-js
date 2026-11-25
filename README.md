@@ -4,8 +4,8 @@ Official JavaScript/TypeScript tools for [OPIKey](https://opikey.ai): one key fo
 
 | Package | What it does |
 |---|---|
-| [`@opikey/sdk`](packages/sdk) | Call any API through your OPI Key (gateway mode), or load your secrets into your app at startup (fetch mode). |
-| [`@opikey/cli`](packages/cli) | `opi login`, `opi keys`, and `opi run -- <command>` to start any program with your secrets loaded. |
+| [`@opikey/sdk`](packages/sdk) | Call any API through your OPI Key, load secrets, create sub-keys for sub-agents, run AI mode, receive webhooks with Inbox, and get instant API accounts. |
+| [`@opikey/cli`](packages/cli) | `opi login`, `opi run` (with secrets, or a short-lived sub-key), `opi subkey`, `opi ai`, `opi inbox listen`, `opi connect` and more. |
 
 ```bash
 npm install @opikey/sdk
