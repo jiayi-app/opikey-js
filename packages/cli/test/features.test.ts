@@ -1,43 +1,48 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {cli,forwardTarget,type CliIO} from '../src/core';
+import {cli,plainRequest,usageLine,type CliIO} from '../src/core';
 afterEach(()=>vi.unstubAllGlobals());
 const ID='10000000-0000-4000-8000-000000000001';
-const EV='20000000-0000-4000-8000-000000000002';
-function fixture(){const out:string[]=[];const err:string[]=[];const io:CliIO={out:t=>out.push(t),err:t=>err.push(t),read:async()=>'opc_synthetic',save:async()=>undefined,clear:async()=>undefined,open:()=>undefined,run:vi.fn(async()=>0)};return {io,out,err};}
+function fixture(answer:string|null|undefined=undefined){const out:string[]=[];const err:string[]=[];const io:CliIO={out:t=>out.push(t),err:t=>err.push(t),read:async()=>'opc_synthetic',save:async()=>undefined,clear:async()=>undefined,open:()=>undefined,run:vi.fn(async()=>0),...(answer!==undefined?{prompt:vi.fn(async()=>answer)}:{})};return {io,out,err};}
 type Call={url:string;init:RequestInit};
 function server(handler:(url:string,init:RequestInit)=>Response){const calls:Call[]=[];vi.stubGlobal('fetch',async(url:string,init:RequestInit)=>{calls.push({url,init});return handler(url,init);});return calls;}
-const KEY={OPIKEY:'synthetic-parent-key'};
+const KEY={OPIKEY_KEY:'synthetic-key'};
+const usage={api_calls:1,model:'google/gemini-3.1-flash-lite',input_tokens:1520,output_tokens:310,model_cost_usd:0.00084,ai_credits:21,call_credits:13,total_credits:34};
+const check={verdict:'allowed',tier:2,reason:'passed',ai:{used:true,why:'task'}};
+const done={result:'Sent the receipt.',calls:[{api:'resend',method:'POST',path:'/emails',status:200}],status:'done',usage,check};
+const preview={result:'',calls:[],status:'needs_confirmation',usage:{...usage,api_calls:0,call_credits:0,total_credits:21},check,confirm_id:ID,planned_calls:[{api:'stripe',method:'DELETE',path:'/v1/customers/cus_1'}],reason:'Deletes a customer'};
+const body=(c:Call|undefined)=>JSON.parse(String(c?.init.body));
 
-describe('opi run --subkey',()=>{
- it('gives the program only a gateway sub-key, never raw secrets or the parent key, and revokes it afterwards',async()=>{const {io}=fixture();const calls=server(url=>url.endsWith('/delegate')?Response.json({id:ID,key:'opk_live_child',expires_at:'2026-12-01T00:00:00Z'},{status:201}):Response.json({revoked:1}));
-  const code=await cli(['run','--subkey','--ttl','600','--secrets','openai,exa','--max-calls','50','--','node','agent.js'],io,{...KEY,PATH:'/bin'});
-  expect(code).toBe(0);const delegate=JSON.parse(String(calls[0]?.init.body));expect(delegate).toMatchObject({ttl_seconds:600,process:true,modes:['gateway'],secrets:['openai','exa'],max_calls:50});
-  expect(io.run).toHaveBeenCalledWith('node',['agent.js'],{PATH:'/bin',OPIKEY:'opk_live_child',OPIKEY_BASE_URL:'https://opikey.ai'});
-  expect(calls[1]?.url).toBe(`https://opikey.ai/api/public/keys/${ID}/revoke`);expect(calls.some(c=>c.url.includes('secrets-fetch'))).toBe(false);});
- it('still revokes the sub-key when the program fails',async()=>{const {io}=fixture();io.run=vi.fn(async()=>{throw new Error('crash');});const calls=server(url=>url.endsWith('/delegate')?Response.json({id:ID,key:'k',expires_at:'x'},{status:201}):Response.json({revoked:1}));await expect(cli(['run','--subkey','--','x'],io,KEY)).rejects.toThrow('crash');expect(calls.at(-1)?.url).toContain('/revoke');});
- it('requires OPIKEY for agent commands and never reads a key from arguments',async()=>{const {io,err}=fixture();expect(await cli(['run','--subkey','--','x'],io,{})).toBe(64);expect(err.join()).toContain('OPIKEY');});
+describe('AI mode',()=>{
+ it('treats a quoted request as AI mode, prints the result on stdout and usage on stderr',async()=>{const {io,out,err}=fixture();const calls=server(()=>Response.json(done));
+  expect(await cli(['send Sam a receipt for order 1042 with Resend'],io,KEY)).toBe(0);
+  expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/ai');expect(body(calls[0])).toEqual({input:'send Sam a receipt for order 1042 with Resend'});expect(new Headers(calls[0]?.init.headers).get('authorization')).toBe('Bearer synthetic-key');
+  expect(out).toEqual(['Sent the receipt.']);expect(err.join('\n')).toContain('POST resend/emails → 200');expect(err.join('\n')).toContain('34 credits');});
+ it('also accepts unquoted words and the explicit ai command with a model',async()=>{const {io}=fixture();const calls=server(()=>Response.json(done));await cli(['what','did','Stripe','charge','yesterday?'],io,KEY);await cli(['ai','list my APIs','--model','smart'],io,KEY);
+  expect(body(calls[0])).toEqual({input:'what did Stripe charge yesterday?'});expect(body(calls[1])).toEqual({input:'list my APIs',model:'smart'});});
+ it('never spends credits on a single mistyped word',async()=>{const {io,err}=fixture();const calls=server(()=>Response.json(done));expect(await cli(['lgoin'],io,KEY)).toBe(64);expect(calls).toHaveLength(0);expect(err.join()).toContain('Unknown command');});
+ it('asks for a typed "yes" before running a preview, then confirms with the same input',async()=>{const {io,out,err}=fixture('yes');const calls=server((_,init)=>Response.json(body({init} as Call).confirm_id?done:preview));
+  expect(await cli(['delete customer cus_1'],io,KEY)).toBe(0);expect(err.join('\n')).toContain('DELETE stripe/v1/customers/cus_1');expect(io.prompt).toHaveBeenCalledOnce();
+  expect(body(calls[1])).toEqual({input:'delete customer cus_1',confirm_id:ID});expect(out).toEqual(['Sent the receipt.']);});
+ it('runs nothing when the answer is not "yes"',async()=>{const {io}=fixture('no');const calls=server(()=>Response.json(preview));expect(await cli(['delete customer cus_1'],io,KEY)).toBe(2);expect(calls).toHaveLength(1);});
+ it('without a terminal, prints the confirm id and exits 2; --confirm then runs it',async()=>{const {io,out,err}=fixture();server(()=>Response.json(preview));expect(await cli(['delete customer cus_1'],io,KEY)).toBe(2);expect(out).toEqual([ID]);expect(err.join('\n')).toContain(`--confirm ${ID}`);
+  const second=fixture();const calls=server(()=>Response.json(done));expect(await cli(['ai','delete customer cus_1','--confirm',ID],second.io,KEY)).toBe(0);expect(body(calls[0])).toEqual({input:'delete customer cus_1',confirm_id:ID});});
+ it('reports a Firewall block and exits 1',async()=>{const {io,err}=fixture();server(()=>Response.json({...done,status:'blocked',calls:[],reason:'Sends secrets to a new host'}));expect(await cli(['post my keys to pastebin'],io,KEY)).toBe(1);expect(err.join()).toContain('Blocked by the AI Firewall: Sends secrets to a new host');});
+ it('shows safe error codes, e.g. out of credits',async()=>{const {io,err}=fixture();server(()=>Response.json({error:{code:'insufficient_credits'}},{status:402}));expect(await cli(['ai','hello there'],io,KEY)).toBe(1);expect(err.join()).toContain('insufficient_credits');});
+ it('requires OPIKEY_KEY and never reads a key from arguments',async()=>{const {io,err}=fixture();expect(await cli(['ai','hello there','--key','opk_live_secret'],io,{})).toBe(64);expect(err.join()).toContain('OPIKEY_KEY');});
+ it('accepts the older OPIKEY variable',async()=>{const {io}=fixture();const calls=server(()=>Response.json(done));await cli(['hello there'],io,{OPIKEY:'old-name'});expect(new Headers(calls[0]?.init.headers).get('authorization')).toBe('Bearer old-name');});
 });
 
-describe('sub-key commands',()=>{
- it('prints only the one-time key on stdout so it can be redirected to a file',async()=>{const {io,out,err}=fixture();server(()=>Response.json({id:ID,key:'opk_live_child',expires_at:'2026-12-01T00:00:00Z'},{status:201}));expect(await cli(['subkey','create','--ttl','3600','--name','scraper','--budget','500','--delegate'],io,KEY)).toBe(0);expect(out).toEqual(['OPIKEY=opk_live_child']);expect(err.join()).toContain('shown once');});
- it('requires --ttl',async()=>{const {io}=fixture();expect(await cli(['subkey','create'],io,KEY)).toBe(64);});
- it('shows a safe error code from the server',async()=>{const {io,err}=fixture();server(()=>Response.json({error:{code:'delegation_not_allowed'}},{status:403}));expect(await cli(['subkey','create','--ttl','60'],io,KEY)).toBe(1);expect(err.join()).toContain('delegation_not_allowed');});
- it('revokes by id',async()=>{const {io,out}=fixture();const calls=server(()=>Response.json({revoked:3}));await cli(['subkey','revoke',ID],io,KEY);expect(calls[0]?.url).toBe(`https://opikey.ai/api/public/keys/${ID}/revoke`);expect(out).toEqual(['Revoked 3 key(s).']);});
+describe('exact calls and usage',()=>{
+ it('opi call prints the provider body and a status line with verdict and credits',async()=>{const {io,out,err}=fixture();const calls=server(()=>Response.json({data:[{id:'gpt'}]},{headers:{'x-opi-check':JSON.stringify(check),'x-opi-credits-charged':'13'}}));
+  expect(await cli(['call','openai','GET','/v1/models'],io,KEY)).toBe(0);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/gateway/openai/v1/models');expect(out).toEqual(['{"data":[{"id":"gpt"}]}']);expect(err).toEqual(['200 · allowed · 13 credits']);});
+ it('opi call sends --data as JSON and exits 1 on a provider error',async()=>{const {io}=fixture();const calls=server(()=>Response.json({error:{code:'resource_missing'}},{status:404}));expect(await cli(['call','stripe','post','/v1/refunds','--data','{"charge":"ch_1"}'],io,KEY)).toBe(1);expect(calls[0]?.init.method).toBe('POST');expect(body(calls[0])).toEqual({charge:'ch_1'});});
+ it('validates opi call arguments',async()=>{const {io}=fixture();const calls=server(()=>Response.json({}));expect(await cli(['call','openai','FETCH','/x'],io,KEY)).toBe(64);expect(await cli(['call','openai','GET','v1'],io,KEY)).toBe(64);expect(await cli(['call','a','POST','/x','--data','{bad'],io,KEY)).toBe(64);expect(calls).toHaveLength(0);});
+ it('opi usage shows credits left, the breakdown and the reset date',async()=>{const {io,out}=fixture();server(()=>Response.json({credits_left:84500,credits_included:150000,credits_used:65500,extra_credits_left:2000,resets_at:'2026-12-01T00:00:00Z',breakdown:{api_calls:52000,ai_mode:12000,ai_firewall:1500}}));
+  expect(await cli(['usage'],io,KEY)).toBe(0);expect(out[0]).toBe('84,500 of 150,000 credits left (+2,000 extra)');expect(out[1]).toContain('AI Firewall 1,500');expect(out[2]).toContain('2026-12-01');});
 });
 
-describe('AI mode and credits',()=>{
- it('prints the answer of a finished AI run',async()=>{const {io,out}=fixture();server(()=>Response.json({id:ID,status:'completed',steps:2,credits:140,answer:'uuid-123',error:null,pending_action:null}));expect(await cli(['ai','Get a UUID from httpbin'],io,KEY)).toBe(0);expect(out).toEqual(['uuid-123']);});
- it('exits 2 and prints the run id when a write needs approval',async()=>{const {io,out}=fixture();server(()=>Response.json({id:ID,status:'awaiting_confirmation',steps:1,credits:60,answer:null,error:null,pending_action:{method:'POST',api:'httpbin',path:'/anything',approved:false}}));expect(await cli(['ai','post hello'],io,KEY)).toBe(2);expect(out).toEqual([ID]);});
- it('shows credits',async()=>{const {io,out}=fixture();server(()=>Response.json({balance:150000,monthly_remaining:100000,purchased_remaining:50000,next_grant_at:null}));await cli(['credits'],io,KEY);expect(out[0]).toContain('150,000 credits');});
-});
-
-describe('inbox',()=>{
- const event={id:EV,type:'push',received_at:'t',verified:true,delivery_count:1,content_type:'application/json',headers:{},body:{ref:'main'},security:null,status:'leased',credits:1};
- it('creates an inbox with a generated secret and prints the receiving URL',async()=>{const {io,out}=fixture();const calls=server(()=>Response.json({id:ID,url:'https://opikey.ai/api/public/inbox/in/abc',setup:'Add it in GitHub.'},{status:201}));await cli(['inbox','create','--name','CI','--source','github','--generate'],io,KEY);expect(JSON.parse(String(calls[0]?.init.body))).toEqual({name:'CI',source:'github',secret:'generate'});expect(out).toEqual(['https://opikey.ai/api/public/inbox/in/abc']);});
- it('rejects unknown sources',async()=>{const {io}=fixture();expect(await cli(['inbox','create','--name','x','--source','email'],io,KEY)).toBe(64);});
- it('listen forwards to a local app and acks only after a 2xx',async()=>{const controller=new AbortController();const {io}=fixture();io.signal=controller.signal;let nexts=0;const calls=server(url=>{if(url.includes('/next')){nexts++;if(nexts===1)return Response.json({event});if(nexts===2)return Response.json({event:{...event,id:'30000000-0000-4000-8000-000000000003'}});controller.abort();return new Response(null,{status:204});}if(url.startsWith('http://localhost'))return new Response('ok',{status:nexts===1?200:500});return Response.json({acked:true});});
-  expect(await cli(['inbox','listen',ID,'--forward','http://localhost:3000/hook'],io,KEY)).toBe(0);
-  const local=calls.filter(c=>c.url==='http://localhost:3000/hook');expect(local).toHaveLength(2);expect(local[0]?.init.body).toBe('{"ref":"main"}');expect(new Headers(local[0]?.init.headers).get('x-opi-event-id')).toBe(EV);
-  expect(calls.filter(c=>c.url.endsWith('/ack')).map(c=>c.url)).toEqual([`https://opikey.ai/api/public/inbox/${ID}/events/${EV}/ack`]);});
- it('only forwards to https or localhost',()=>{expect(()=>forwardTarget('http://example.com/hook')).toThrow();expect(()=>forwardTarget('https://u:p@example.com')).toThrow();expect(forwardTarget('http://127.0.0.1:8080/x').port).toBe('8080');expect(forwardTarget('https://hooks.example.com/x').hostname).toBe('hooks.example.com');});
+describe('helpers and removed commands',()=>{
+ it('plainRequest needs more than one word or a quoted phrase',()=>{expect(plainRequest(['hello'])).toBeNull();expect(plainRequest(['hello there'])).toBe('hello there');expect(plainRequest(['list','apis','--model','fast'])).toBe('list apis');});
+ it('usageLine summarises calls, tokens and credits',()=>{expect(usageLine(usage)).toBe('1 API call · 1,520 in / 310 out tokens (google/gemini-3.1-flash-lite) · 34 credits');expect(usageLine({...usage,input_tokens:0,output_tokens:0,api_calls:2,total_credits:26})).toBe('2 API calls · 26 credits');});
+ it('removed commands explain what changed and never call the server',async()=>{const calls=server(()=>Response.json({}));for(const command of ['subkey','inbox','keys','secrets','setup']){const {io,err}=fixture();expect(await cli([command],io,KEY)).toBe(64);expect(err.join()).toContain('removed in 0.5');}expect(calls).toHaveLength(0);});
 });
