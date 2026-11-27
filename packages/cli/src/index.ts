@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {spawn} from 'node:child_process';
+import {createInterface} from 'node:readline/promises';
 import {homedir,hostname} from 'node:os';
 import {join,dirname} from 'node:path';
 import {mkdir,readFile,writeFile,rename,chmod,unlink,lstat} from 'node:fs/promises';
@@ -12,7 +13,10 @@ io.setup={hostname:hostname(),path:(...parts)=>join(homedir(),...parts),
  readText:async path=>{try{const s=await lstat(path);if(s.isSymbolicLink()||!s.isFile())throw new Error('Refusing to edit a link or non-file config.');return await readFile(path,'utf8');}catch(error){if(error&&typeof error==='object'&&'code'in error&&error.code==='ENOENT')return null;throw error;}},
  writePrivate:async(path,text)=>{await mkdir(dirname(path),{recursive:true,mode:0o700});const temporary=join(dirname(path),'.opikey-'+randomUUID());try{await writeFile(temporary,text,{mode:0o600,flag:'wx'});await chmod(temporary,0o600);await rename(temporary,path);}finally{await unlink(temporary).catch(()=>undefined);}},
  exec:(command,args)=>new Promise(resolve=>{const child=spawn(command,args,{stdio:'ignore',shell:false});child.on('error',()=>resolve(127));child.on('exit',code=>resolve(code??1));})};
+// Typed confirmations for AI mode previews. Only on an interactive terminal; otherwise the CLI prints the confirm id and exits 2.
+io.prompt=async question=>{if(!process.stdin.isTTY||!process.stderr.isTTY)return null;const rl=createInterface({input:process.stdin,output:process.stderr});try{return await rl.question(question);}catch{return null;}finally{rl.close();}};
 const argv=process.argv.slice(2);
-// Long-running commands stop cleanly on Ctrl+C. Others keep the default behaviour (and `opi run` forwards signals to its child).
-if((argv[0]==='inbox'&&argv[1]==='listen')||argv[0]==='ai'){const controller=new AbortController();io.signal=controller.signal;process.once('SIGINT',()=>controller.abort());process.once('SIGTERM',()=>controller.abort());}
+// Requests that can take a while stop cleanly on Ctrl+C. `opi run` keeps forwarding signals to its child.
+const LOCAL=new Set(['login','logout','keys','vault','secrets','run','setup','usage','credits','help','--help','-h','version','--version','-v']);
+if(argv[0]!==undefined&&!LOCAL.has(argv[0])){const controller=new AbortController();io.signal=controller.signal;process.once('SIGINT',()=>controller.abort());process.once('SIGTERM',()=>controller.abort());}
 try{process.exitCode=await cli(argv,io,process.env);}catch{if(io.signal?.aborted){process.exitCode=130;}else{io.err('OPI command failed. Check your sign-in, key access and connection.');process.exitCode=1;}}

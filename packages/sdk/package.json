@@ -1,16 +1,16 @@
 {
   "name": "@opikey/sdk",
-  "version": "0.3.0",
-  "description": "OPIKey SDK: call any API through your OPI Key, give sub-agents smaller keys, use AI mode and receive webhooks.",
+  "version": "0.4.0",
+  "description": "OPIKey SDK for the AI-native API Gateway: call any API in your Vault with one OPI Key, directly or in plain language with AI mode.",
   "keywords": [
+    "opikey",
+    "api-gateway",
+    "ai-native",
     "ai-agents",
     "api-keys",
-    "gateway",
-    "mcp",
-    "opikey",
     "secrets",
-    "sub-keys",
-    "webhooks"
+    "vault",
+    "ai-firewall"
   ],
   "license": "MIT",
   "homepage": "https://opikey.ai/docs",

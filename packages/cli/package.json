@@ -1,13 +1,14 @@
 {
   "name": "@opikey/cli",
-  "version": "0.4.0",
-  "description": "OPIKey CLI: sign in, run commands with secrets or a short-lived sub-key, manage sub-keys, AI mode, inbox and instant API accounts.",
+  "version": "0.5.0",
+  "description": "OPIKey CLI for the AI-native API Gateway: plain-language AI mode requests, exact API calls, usage and secrets for your programs, all with one OPI Key.",
   "keywords": [
     "opikey",
     "cli",
-    "secrets",
-    "env",
-    "ai-agents"
+    "api-gateway",
+    "ai-native",
+    "ai-agents",
+    "secrets"
   ],
   "license": "MIT",
   "homepage": "https://opikey.ai/docs",
@@ -21,7 +22,8 @@
   },
   "type": "module",
   "bin": {
-    "opi": "dist/index.js"
+    "opi": "dist/index.js",
+    "opikey": "dist/index.js"
   },
   "files": [
     "dist",
@@ -36,7 +38,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@opikey/sdk": "^0.3.0",
+    "@opikey/sdk": "^0.4.0",
     "@napi-rs/keyring": "2.1.2"
   },
   "devDependencies": {
