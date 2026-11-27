@@ -50,3 +50,8 @@ describe('usage',()=>{
  it('reads this month\'s credits and breakdown',async()=>{const u={credits_left:84500,credits_included:150000,credits_used:65500,extra_credits_left:0,resets_at:'2026-12-01T00:00:00Z',breakdown:{api_calls:52000,ai_mode:12000,ai_firewall:1500}};const calls=server(()=>Response.json(u));expect(await opi().usage()).toEqual(u);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/usage');});
  it('keeps the deprecated credits() call working',async()=>{const calls=server(()=>Response.json({balance:5000,monthly_remaining:5000,purchased_remaining:0,next_grant_at:null}));expect((await opi().credits()).balance).toBe(5000);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/credits');});
 });
+
+describe('this key',()=>{
+ it('whoami reads the key\'s own settings',async()=>{const info={id:ID,name:'CLI on MacBook',prefix:'opk_live_ab12',access:'all',apis:['openai','stripe'],firewall_level:'standard',ai_writes:'auto',expires_at:null};const calls=server(()=>Response.json(info));expect(await opi().whoami()).toEqual(info);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/key');});
+ it('revokeThisKey revokes the calling key only',async()=>{const calls=server(()=>Response.json({revoked:true}));await opi().revokeThisKey();expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/key/revoke');expect(calls[0]?.init.method).toBe('POST');expect(new Headers(calls[0]?.init.headers).get('authorization')).toBe('Bearer synthetic');});
+});

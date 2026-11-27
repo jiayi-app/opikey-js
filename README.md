@@ -4,15 +4,15 @@ Official JavaScript/TypeScript tools for [OPIKey](https://opikey.ai), the AI-nat
 
 | Package | What it does |
 |---|---|
-| [`@opikey/sdk`](packages/sdk) | `opi.ai()` for plain-language requests, `opi.call()` for exact calls, `opi.usage()` for credits, and fetch-mode secret loading. |
-| [`@opikey/cli`](packages/cli) | `opi "request"` (AI mode), `opi call`, `opi usage`, `opi run` and `opi login`. The binary is `opi`, also available as `opikey`. |
+| [`@opikey/sdk`](packages/sdk) | `opi.ai()` for plain-language requests, `opi.call()` for exact calls, `opi.usage()` for credits, `opi.whoami()`, and fetch-mode secret loading. |
+| [`@opikey/cli`](packages/cli) | `opi login` (creates a revocable OPI Key for this computer), `opi "request"` (AI mode), `opi call`, `opi apis`, `opi usage` and `opi run`. The binary is `opi`, also available as `opikey`. |
 
 ```bash
 npm install @opikey/sdk
 npm install --global @opikey/cli
 ```
 
-Everything authenticates with an OPI Key, read from the `OPIKEY_KEY` environment variable. Never put an OPI Key in browser code.
+Everything authenticates with an OPI Key: from `opi login` in the CLI, or the `OPIKEY_KEY` environment variable. Never put an OPI Key in browser code.
 
 Documentation: https://opikey.ai/docs
 

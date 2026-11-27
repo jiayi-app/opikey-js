@@ -24,6 +24,8 @@ export type CallInput={api:string;method?:HttpMethod;path:string;body?:unknown;q
 /** An exact call through the gateway. `response` is the provider's response, unchanged. */
 export type CallResult={response:Response;status:number;ok:boolean;check:Check|null;usage:Usage|null;creditsCharged:number|null};
 
+/** This OPI Key's own settings (`GET /api/public/v1/key`). Never secret values. */
+export type KeyInfo={id:string;name:string;prefix:string;access:'all'|'selected';apis:string[];firewall_level:string;ai_writes:string;expires_at:string|null};
 export type AccountUsage={credits_left:number;credits_included:number;credits_used:number;extra_credits_left:number;resets_at:string|null;breakdown:{api_calls:number;ai_mode:number;ai_firewall:number}};
 /** @deprecated Use `usage()`. */
 export type Credits={balance:number;monthly_remaining:number;purchased_remaining:number;next_grant_at:string|null};
@@ -161,6 +163,11 @@ export class OpiKey{
   if(!response.ok){const {code,details}=await errorCode(response);if(OPIKEY_CODES.has(code)||response.status===401||response.status===402)throw typedError(code,response.status,details);}
   return {response,status:response.status,ok:response.ok,check:headerJson<Check>(response,'x-opi-check'),usage:headerJson<Usage>(response,'x-opi-usage'),creditsCharged:headerNumber(response,'x-opi-credits-charged')};
  }
+
+ /** This key's name, prefix, access, AI Firewall level, AI writes setting and expiry. Never secret values. */
+ whoami():Promise<KeyInfo>{return this.#json<KeyInfo>('/api/public/v1/key');}
+ /** Revoke this OPI Key. It stops working immediately. A key can revoke only itself. */
+ async revokeThisKey():Promise<void>{await this.#request('/api/public/v1/key/revoke',{method:'POST'});}
 
  /** This month's credits: left, included, used, extra, reset date and a breakdown into API calls, AI mode and AI Firewall. */
  usage():Promise<AccountUsage>{return this.#json<AccountUsage>('/api/public/usage');}

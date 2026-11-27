@@ -54,6 +54,15 @@ await opi.usage();
 //   breakdown: { api_calls, ai_mode, ai_firewall } }
 ```
 
+## This key
+
+```ts
+await opi.whoami();        // { id, name, prefix, access, apis, firewall_level, ai_writes, expires_at }
+await opi.revokeThisKey(); // revoke the key in use; it stops working immediately
+```
+
+A key can revoke only itself. It can't create keys, change billing or manage your account; those stay in the dashboard.
+
 ## Load secrets at startup (fetch mode)
 
 For keys with fetch mode turned on:

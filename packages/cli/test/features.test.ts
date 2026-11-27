@@ -44,5 +44,5 @@ describe('exact calls and usage',()=>{
 describe('helpers and removed commands',()=>{
  it('plainRequest needs more than one word or a quoted phrase',()=>{expect(plainRequest(['hello'])).toBeNull();expect(plainRequest(['hello there'])).toBe('hello there');expect(plainRequest(['list','apis','--model','fast'])).toBe('list apis');});
  it('usageLine summarises calls, tokens and credits',()=>{expect(usageLine(usage)).toBe('1 API call · 1,520 in / 310 out tokens (google/gemini-3.1-flash-lite) · 34 credits');expect(usageLine({...usage,input_tokens:0,output_tokens:0,api_calls:2,total_credits:26})).toBe('2 API calls · 26 credits');});
- it('sub-key and inbox commands are gone and never call the server',async()=>{const calls=server(()=>Response.json({}));for(const command of ['subkey','inbox','whoami']){const {io}=fixture();expect(await cli([command],io,KEY)).toBe(64);}expect(calls).toHaveLength(0);});
+ it('removed commands explain what changed and never call the server',async()=>{const calls=server(()=>Response.json({}));for(const command of ['subkey','inbox','keys','secrets','setup']){const {io,err}=fixture();expect(await cli([command],io,KEY)).toBe(64);expect(err.join()).toContain('removed in 0.5');}expect(calls).toHaveLength(0);});
 });
