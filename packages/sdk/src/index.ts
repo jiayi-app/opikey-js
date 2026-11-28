@@ -24,6 +24,9 @@ export type CallInput={api:string;method?:HttpMethod;path:string;body?:unknown;q
 /** An exact call through the gateway. `response` is the provider's response, unchanged. */
 export type CallResult={response:Response;status:number;ok:boolean;check:Check|null;usage:Usage|null;creditsCharged:number|null};
 
+/** One secret to add to the Vault. `name` is kept as-is (e.g. OPENAI_API_KEY) so `loadSecrets()` and `opi run` give programs the same variable names. */
+export type ImportSecret={name:string;value:string;service?:string;base_url?:string};
+export type ImportResult={imported:{name:string;service:string|null;gateway_ready:boolean}[];skipped:{name:string;reason:'exists'|'invalid'|'not_allowed'|string}[]};
 /** This OPI Key's own settings (`GET /api/public/v1/key`). Never secret values. */
 export type KeyInfo={id:string;name:string;prefix:string;access:'all'|'selected';apis:string[];firewall_level:string;ai_writes:string;expires_at:string|null};
 export type AccountUsage={credits_left:number;credits_included:number;credits_used:number;extra_credits_left:number;resets_at:string|null;breakdown:{api_calls:number;ai_mode:number;ai_firewall:number}};
@@ -71,7 +74,7 @@ const safeMessages:Record<string,string>={
  key_paused:'This OPI Key is paused.',key_expired:'This OPI Key has expired.',rate_limited:'Too many requests. Try again shortly.',not_found:'Not found.',
  browser_origin_blocked:'OPI Keys can\'t be used from browser code. Call OPIKey from your server or agent, or allow this origin on the key.',
  confirmation_invalid:'This confirmation is unknown, already used, expired or for a different input.',feature_paused:'This feature is paused.',
- ai_mode_unavailable:'AI mode is temporarily unavailable. Nothing was charged.',invalid_request:'The request is not valid.',
+ ai_mode_unavailable:'AI mode is temporarily unavailable. Nothing was charged.',vault_write_not_allowed:'This OPI Key can\'t add APIs to the Vault. Turn on "Can add APIs to the Vault" on the key\'s page, or use the key from opi login.',invalid_request:'The request is not valid.',
 };
 /** Error codes that OPIKey itself returns. Any other error on an exact call is the provider's own response. */
 const OPIKEY_CODES=new Set([...Object.keys(safeMessages),'approval_required','check_held','security_blocked','response_blocked_injection']);
@@ -171,6 +174,16 @@ export class OpiKey{
 
  /** This month's credits: left, included, used, extra, reset date and a breakdown into API calls, AI mode and AI Firewall. */
  usage():Promise<AccountUsage>{return this.#json<AccountUsage>('/api/public/usage');}
+
+ /**
+  * Add API keys and secrets to the Vault (up to 200 per call). Values are encrypted by OPIKey and never returned.
+  * Imported secrets are added to this key's access. The key needs "Can add APIs to the Vault" (on for keys created by `opi login`).
+  */
+ async importSecrets(secrets:ImportSecret[],options:{onConflict?:'skip'|'replace'}={}):Promise<ImportResult>{
+  if(!Array.isArray(secrets)||secrets.length<1||secrets.length>200)throw new OpiError('invalid_request',0,'Import between 1 and 200 secrets at a time.');
+  for(const s of secrets)if(!s||typeof s.name!=='string'||!API_NAME.test(s.name)||typeof s.value!=='string'||!s.value)throw new OpiError('invalid_request',0,'Each secret needs a name (letters, numbers, . _ -, up to 64) and a value.');
+  return this.#json<ImportResult>('/api/public/v1/vault/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({secrets:secrets.map(s=>({name:s.name,value:s.value,...(s.service?{service:s.service}:{}),...(s.base_url?{base_url:s.base_url}:{})})),on_conflict:options.onConflict??'skip'})});
+ }
 
  /** Gateway call returning the raw Response. Prefer `call()`, which also returns the check and usage. Any non-2xx response throws. */
  fetch(api:string,path:string,init:RequestInit={}){return this.#request(apiPath(api,path),init);}

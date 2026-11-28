@@ -1,4 +1,6 @@
-import {OpiKey,OpiError,OpiAuthError,secureBaseUrl,checkResponse,type AiResult,type AiModel,type HttpMethod,type Usage} from '@opikey/sdk';
+import {OpiKey,OpiError,OpiAuthError,secureBaseUrl,checkResponse,type AiResult,type AiModel,type HttpMethod,type Usage,type ImportSecret} from '@opikey/sdk';
+import {parseEnv,pickSecrets,mask,removeFromEnv} from './envfile.js';
+import {SKILL_MD,SKILL_TARGETS,isSkillTarget} from './skill.js';
 export type CliIO={out:(text:string)=>void;err:(text:string)=>void;
  /** The OPI Key saved by `opi login` (OS keychain, or a private 0600 file). */
  read:()=>Promise<string|null>;save:(key:string)=>Promise<void>;clear:()=>Promise<void>;
@@ -6,7 +8,9 @@ export type CliIO={out:(text:string)=>void;err:(text:string)=>void;
  /** Asks a question on the terminal and returns the typed answer, or null when there is no interactive terminal. */
  prompt?:(question:string)=>Promise<string|null>;
  /** Used to name the OPI Key that `opi login` creates. */
- hostname?:string};
+ hostname?:string;
+ /** File access for `opi import` and `opi skill install`. Paths are resolved against the current folder, or the home folder for skills. */
+ files?:{cwd:string;home:string;join:(...parts:string[])=>string;read:(path:string)=>Promise<string|null>;write:(path:string,text:string)=>Promise<void>}};
 
 const HELP=`OPIKey CLI: AI-native API Gateway. Commands work as \`opi\` or \`opikey\`.
 
@@ -19,6 +23,11 @@ const HELP=`OPIKey CLI: AI-native API Gateway. Commands work as \`opi\` or \`opi
   opi call API METHOD PATH [--data JSON]
                                    exact call through the gateway, e.g. opi call openai GET /v1/models
   opi apis                         the APIs this key can use (names only, never values)
+  opi import [FILE] [--yes] [--remove] [--replace] [--all]
+                                   bring the API keys in a .env file (default ./.env) into your Vault
+  opi skill install --agent claude-code|codex|openclaw|hermes|agents
+                                   teach an AI agent to use OPIKey (writes the OPIKey SKILL.md)
+  opi skill show                   print the skill file
   opi usage                        this month's credits: left, used and where they went
   opi run -- COMMAND               run a program with the key's granted secrets in its environment (fetch mode)
 
@@ -28,8 +37,8 @@ The OPI Key comes from OPIKEY_KEY (or OPIKEY) if set, otherwise from opi login. 
 function flag(args:string[],name:string){const end=args.indexOf('--');const i=args.indexOf(name);if(i<0||(end>=0&&i>end))return undefined;const v=args[i+1];return v===undefined||v.startsWith('--')?undefined:v;}
 class UsageError extends Error{}
 /** Kept in step with package.json by a test. */
-export const VERSION='0.5.0';
-const COMMANDS=new Set(['login','logout','whoami','apis','vault','run','ai','call','usage','credits','help','--help','-h','version','--version','-v']);
+export const VERSION='0.6.0';
+const COMMANDS=new Set(['login','logout','whoami','apis','vault','run','import','skill','ai','call','usage','credits','help','--help','-h','version','--version','-v']);
 /** Commands that existed before 0.5 and were removed with the features they used. */
 const REMOVED:Record<string,string>={
  keys:'Manage OPI Keys on the OPI Keys page at opikey.ai.',secrets:'Use opi apis to see what this key can use.',setup:'Connect with the CLI, the SDK or HTTPS instead. See opikey.ai/docs.',
@@ -117,11 +126,53 @@ export async function cli(args:string[],io:CliIO,environment:Record<string,strin
   await io.clear();io.out(revoked?'Signed out. The OPI Key for this computer was revoked.':'Signed out on this computer.');return revoked?0:1;
  }
 
+ /** Bring the API keys in a .env file into the Vault. Values are never printed; nothing is changed without a confirmation. */
+ async function importEnv():Promise<number>{
+  const files=io.files;if(!files)throw new UsageError('opi import is not available in this environment.');
+  const arg=args[1]&&!args[1].startsWith('--')?args[1]:'.env';const path=arg.startsWith('/')?arg:files.join(files.cwd,arg);
+  const text=await files.read(path);if(text===null)throw new UsageError(`No file at ${arg}. Run opi import path/to/.env`);
+  const entries=parseEnv(text);const {secrets,skipped}=pickSecrets(entries,args.includes('--all'));
+  if(!secrets.length){io.err(`No API keys found in ${arg}.${skipped.length?` Skipped ${skipped.length} other variable${skipped.length===1?'':'s'}; use --all to include them.`:''}`);return 0;}
+  io.err(`Found ${secrets.length} API key${secrets.length===1?'':'s'} in ${arg}:`);
+  for(const c of secrets)io.err(`  ${c.name}\t${c.service??'secret'}\t${mask(c.value)}`);
+  if(skipped.length)io.err(`Skipping ${skipped.length}: ${skipped.map(c=>`${c.name} (${c.reason})`).join(', ')}`);
+  const opi=await keyClient();
+  if(!args.includes('--yes')){const answer=io.prompt?await io.prompt(`Import ${secrets.length} into your OPIKey Vault? Type "yes": `):null;
+   if(answer===null){io.err('Nothing was imported. Run again with --yes to go ahead.');return 2;}
+   if(answer.trim().toLowerCase()!=='yes'){io.err('Nothing was imported.');return 2;}}
+  const imported:{name:string;service:string|null}[]=[];const notImported:{name:string;reason:string}[]=[];
+  for(let i=0;i<secrets.length;i+=200){const batch:ImportSecret[]=secrets.slice(i,i+200).map(c=>({name:c.name,value:c.value,...(c.service?{service:c.service}:{})}));
+   const r=await opi.importSecrets(batch,{onConflict:args.includes('--replace')?'replace':'skip'});imported.push(...r.imported);notImported.push(...r.skipped);}
+  for(const r of imported)io.out(`imported\t${r.name}\t${r.service??'secret'}`);
+  for(const r of notImported)io.out(`skipped\t${r.name}\t${r.reason==='exists'?'already in your Vault (use --replace to overwrite)':r.reason}`);
+  if(args.includes('--remove')&&imported.length){await files.write(path,removeFromEnv(text,entries,new Set(imported.map(r=>r.name))));io.err(`Removed ${imported.length} imported key${imported.length===1?'':'s'} from ${arg}.`);}
+  io.err(`\nNext:\n  1. Run your app with your keys from the Vault: opi run -- <command>\n  2. Connect your AI tool: opikey.ai/connect/integrations\n  3. Any key that was ever committed or shared is still exposed. Rotate it at the provider.`);
+  return notImported.some(r=>r.reason!=='exists')?1:0;
+ }
+
+ /** Write the OPIKey skill into an agent's personal skills folder. */
+ async function skill():Promise<number>{
+  const sub=args[1];
+  if(sub==='show'){io.out(SKILL_MD);return 0;}
+  if(sub!=='install')throw new UsageError(`opi skill install --agent ${Object.keys(SKILL_TARGETS).join('|')}  ·  opi skill show`);
+  const agent=flag(args,'--agent');if(!isSkillTarget(agent))throw new UsageError(`Choose an agent: --agent ${Object.keys(SKILL_TARGETS).join('|')}`);
+  const files=io.files;if(!files)throw new UsageError('opi skill install is not available in this environment.');
+  const target=SKILL_TARGETS[agent];const path=files.join(files.home,...target.path);
+  await files.write(path,SKILL_MD);
+  io.out(`Installed the OPIKey skill for ${target.label} at ${path}`);
+  io.err(`Restart ${target.label}, then ask it something like "use OPIKey to list my APIs". It uses the key from opi login${envKey()?' (or OPIKEY_KEY)':''}.`);
+  if(!envKey()&&!(await savedKey()))io.err('No OPI Key on this computer yet. Run opi login first.');
+  return 0;
+ }
+
  if(command==='--version'||command==='-v'||command==='version'){io.out(VERSION);return 0;}
  if(command===undefined||command==='help'||command==='--help'||command==='-h'){io.out(HELP);return 0;}
  try{
  if(command==='login')return await login();
  if(command==='logout')return await logout();
+
+ if(command==='import')return await importEnv();
+ if(command==='skill')return await skill();
 
  if(command==='whoami'){const found=await resolveKey();if(!found)throw new UsageError('No OPI Key. Run opi login, or set the OPIKEY_KEY environment variable.');const k=await new OpiKey({key:found.key,baseUrl:base}).whoami();
   io.out(`${k.name}\t${k.prefix}…`);io.out(`from\t${found.source}`);io.out(`APIs\t${k.access==='all'?'all APIs in your Vault':k.apis.join(', ')||'none yet'}`);io.out(`firewall\t${k.firewall_level}`);io.out(`AI writes\t${k.ai_writes}`);io.out(`expires\t${k.expires_at??'never'}`);return 0;}
