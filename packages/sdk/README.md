@@ -63,6 +63,18 @@ await opi.revokeThisKey(); // revoke the key in use; it stops working immediatel
 
 A key can revoke only itself. It can't create keys, change billing or manage your account; those stay in the dashboard.
 
+## Import API keys into the Vault
+
+```ts
+const result = await opi.importSecrets(
+  [{ name: 'OPENAI_API_KEY', value: process.env.OPENAI_API_KEY!, service: 'openai' }],
+  { onConflict: 'skip' }, // or 'replace'
+);
+// { imported: [{ name, service, gateway_ready }], skipped: [{ name, reason: 'exists' | 'invalid' | 'not_allowed' }] }
+```
+
+Up to 200 per call. Names use letters, numbers, `_`, `.` and `-` (64 characters at most). The key needs the "Can add APIs to the Vault" permission; otherwise it throws `vault_write_not_allowed`. Values are sent once over HTTPS and never returned. From the terminal, `opi import` does this for a whole `.env` file.
+
 ## Load secrets at startup (fetch mode)
 
 For keys with fetch mode turned on:

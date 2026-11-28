@@ -55,3 +55,11 @@ describe('this key',()=>{
  it('whoami reads the key\'s own settings',async()=>{const info={id:ID,name:'CLI on MacBook',prefix:'opk_live_ab12',access:'all',apis:['openai','stripe'],firewall_level:'standard',ai_writes:'auto',expires_at:null};const calls=server(()=>Response.json(info));expect(await opi().whoami()).toEqual(info);expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/key');});
  it('revokeThisKey revokes the calling key only',async()=>{const calls=server(()=>Response.json({revoked:true}));await opi().revokeThisKey();expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/key/revoke');expect(calls[0]?.init.method).toBe('POST');expect(new Headers(calls[0]?.init.headers).get('authorization')).toBe('Bearer synthetic');});
 });
+
+describe('import',()=>{
+ it('sends secrets with names kept and returns names only',async()=>{const calls=server(()=>Response.json({imported:[{name:'OPENAI_API_KEY',service:'openai',gateway_ready:true}],skipped:[{name:'OLD',reason:'exists'}]}));
+  const r=await opi().importSecrets([{name:'OPENAI_API_KEY',value:'sk-test',service:'openai'},{name:'OLD',value:'x'}]);
+  expect(calls[0]?.url).toBe('https://opikey.ai/api/public/v1/vault/import');expect(body(calls[0])).toEqual({secrets:[{name:'OPENAI_API_KEY',value:'sk-test',service:'openai'},{name:'OLD',value:'x'}],on_conflict:'skip'});expect(r.skipped[0]?.reason).toBe('exists');});
+ it('validates before sending',async()=>{const calls=server(()=>Response.json({}));await expect(opi().importSecrets([])).rejects.toMatchObject({code:'invalid_request'});await expect(opi().importSecrets([{name:'bad name',value:'x'}])).rejects.toMatchObject({code:'invalid_request'});await expect(opi().importSecrets([{name:'A',value:''}])).rejects.toMatchObject({code:'invalid_request'});expect(calls).toHaveLength(0);});
+ it('explains a missing Vault permission',async()=>{server(()=>Response.json({error:{code:'vault_write_not_allowed'}},{status:403}));const e=await opi().importSecrets([{name:'A',value:'x'}]).catch(x=>x);expect(e).toBeInstanceOf(OpiForbiddenError);expect(e.message).toContain('Can add APIs to the Vault');});
+});

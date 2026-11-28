@@ -1,6 +1,6 @@
 {
   "name": "@opikey/sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "OPIKey SDK for the AI-native API Gateway: call any API in your Vault with one OPI Key, directly or in plain language with AI mode.",
   "keywords": [
     "opikey",
